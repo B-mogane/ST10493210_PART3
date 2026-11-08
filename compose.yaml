@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: RaceDay.API/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__RaceDay: ${RACEDAY_SQL_CONNECTION}
+      Jwt__Issuer: RaceDay.API
+      Jwt__Audience: RaceDay.Client
+      Jwt__Key: ${RACEDAY_JWT_KEY}
+      AzureBlobStorage__ConnectionString: ${AZURE_BLOB_CONNECTION_STRING}
+    ports:
+      - "5080:8080"
+  mvc:
+    build:
+      context: .
+      dockerfile: RaceDay.MVC/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      Api__BaseUrl: http://api:8080/
+    depends_on:
+      - api
+    ports:
+      - "5081:8080"
