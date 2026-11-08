@@ -1,0 +1,87 @@
+# RaceDay POE — Part 3 MVC Application, Azure Blob Storage and Docker
+
+This Part 3 starter extends the supplied Part 2 API project. It includes an MVC application that consumes the API over HTTP, session-based web authentication, role-specific pages, API-side Azure Blob Storage, Dockerfiles and a CI workflow that builds API and MVC.
+
+## Projects
+- `RaceDay.API`: the REST API and the only project that communicates with SQL Server and Azure Blob Storage.
+- `RaceDay.MVC`: Razor MVC user interface. It has no database connection or EF Core reference; all data goes through `RaceDayApiClient` to the API.
+- `RaceDay.Tests`: the Part 2 test project (currently one password-hashing unit test; expand this for the assessment).
+
+## 1. Before running
+- Install .NET 8 SDK and Visual Studio 2022 with ASP.NET and web development.
+- Configure SQL Server and ensure the `RaceDay` database exists.
+- Set a strong JWT signing key (at least 32 bytes).
+- The API uses the official `Azure.Storage.Blobs` NuGet package. You do not need an Azure subscription-management SDK, subscription ID, tenant ID, or Azure account-management package in the code. 
+
+## 2. Update the database schema
+The assignment requires event distance and event type at event level and image-name metadata. Run `Database/Part3_Schema_Update.sql` against the existing RaceDay database before running the extended API. It adds `Event.DistanceKm`, `Event.EventType`, `Event.BannerImageName` and `User.ProfilePictureName`. Back up the database first. If you use EF Core migrations instead, create/apply a migration after confirming the model and existing database are aligned; do not run both approaches blindly.
+
+## 3. Azure Blob Storage NuGet package and API configuration
+
+The API uses **`Azure.Storage.Blobs`** 
+```xml
+<PackageReference Include="Azure.Storage.Blobs" Version="12.30.1" />
+```
+
+To install it through Visual Studio, right-click **RaceDay.API** → **Manage NuGet Packages** → **Browse** → search for `Azure.Storage.Blobs` → choose stable version `12.30.1` → **Install**. Alternatively, run this in the Package Manager Console:
+
+```powershell
+Install-Package Azure.Storage.Blobs -Version 12.30.1
+```
+
+Or use the .NET CLI from the `RaceDay.API` folder:
+
+```bash
+dotnet add package Azure.Storage.Blobs --version 12.30.1
+```
+
+`BlobStorageService.cs` uses `BlobServiceClient` from that NuGet package to upload and download blobs. It does not call Azure Resource Manager and does not need a subscription ID or tenant ID.
+
+
+Edit `RaceDay.API/appsettings.json` or use environment variables:
+- `ConnectionStrings__RaceDay`
+- `Jwt__Issuer`
+- `Jwt__Audience`
+- `Jwt__Key`
+- `AzureBlobStorage__ConnectionString`
+
+The Storage Account connection string must grant the API permission to create private containers. The API accepts JPG/JPEG, PNG and WEBP images up to 5 MB. The MVC project never connects to Azure directly. Uploaded files are stored in private containers (`event-banners` and `profile-pictures`); images are read through the API and proxied by the MVC `MediaController` for browser display.
+
+## 4. Run locally in Visual Studio
+1. Open `RaceDay.sln`.
+2. Set `RaceDay.API` as the startup project and run it. Note its HTTPS/HTTP URL.
+3. Set `Api:BaseUrl` in `RaceDay.MVC/appsettings.json` to that API URL, including the trailing slash (for example `https://localhost:7001/`).
+4. Run `RaceDay.MVC` as the startup project. Browse to `/`.
+5. Register an Organiser account and a Participant account. Log in and test the separate navigation experiences.
+
+The API must be running before the MVC application can load data. Ensure the API's development HTTPS certificate is trusted on your machine if using HTTPS.
+
+## 5. Main pages
+### Organiser
+- Dashboard: events created, confirmed enrolments per event, upcoming published event count.
+- Manage events: create, edit, delete events and upload banner images.
+- Categories: add and view categories; delete only categories with no enrolments.
+- Enrolments: view participants/categories/status and submit finish times/positions.
+
+### Participant
+- Find events: browse and filter by name/location and Run/Walk/Cycle.
+- Event details: view event information and categories; enrol in a category.
+- My enrolments: view/cancel own enrolments.
+- My results: view event/date/category/time/position for captured results.
+- Profile: update name/password and upload profile picture.
+
+## 6. Docker
+Docker Desktop must be running. Create a private `.env` file by copying `.env.example` and replacing every placeholder with your own SQL Server connection string, JWT key and Azure Storage connection string. Do not commit `.env`.
+
+Run both API and MVC from the repository root:
+```bash
+docker compose --env-file .env up --build
+```
+Open the MVC website at `http://localhost:5081` and the API at `http://localhost:5080/swagger` 
+
+To build only the MVC container:
+```bash
+docker build -f RaceDay.MVC/Dockerfile -t racedday-mvc .
+docker run --rm -p 5081:8080 -e Api__BaseUrl=http://host.docker.internal:5080/ racedday-mvc
+```
+
