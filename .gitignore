@@ -1,0 +1,13 @@
+# Build outputs
+**/bin/
+**/obj/
+**/TestResults/
+.vs/
+.idea/
+# Local secrets and environment
+.env
+**/appsettings.Development.json
+secrets.json
+# User generated files
+*.user
+*.suo
